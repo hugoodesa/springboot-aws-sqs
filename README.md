@@ -1,0 +1,3 @@
+https://excalidraw.com/#room=51170c2ccffee7a13f69,SbDENIzkeW-ShAzDDXV7Kw
+
+https://app.diagrams.net/#Wb!QZ9OmN0vyk2kAJA88I94g0lFDzU2VvtOoEDJ5mpZ1AHkK0R26vdFRqZoB-Huh5or%2F01TLPCGF3PLFRMF5WZZRFL5FMAIRIJV53U#%7B%22pageId%22%3A%22dxHqUNj0yZjXHQnqGlX-%22%7D
