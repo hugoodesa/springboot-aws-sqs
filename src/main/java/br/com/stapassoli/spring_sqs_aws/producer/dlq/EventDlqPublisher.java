@@ -24,6 +24,7 @@ public class EventDlqPublisher implements DlqPublisher {
     private final SqsTemplate sqsTemplate;
     private final AwsSqsProperties properties;
 
+
     @Override
     public void sendToDlq(String originalPayload, String reason, String originalMessageId, Map<String, Object> additionalHeaders) {
         String dlqQueueName = properties.getQueues().getEventsDlq();

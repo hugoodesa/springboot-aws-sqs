@@ -19,13 +19,13 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(name = "EventMessage", description = "Envelope do evento. No EventBridge, os dados de negócio ficam em detail.")
 public record EventMessageDTO(
-        @JsonAlias("id")
-        @JsonProperty("eventId")
+        @JsonAlias({"id", "eventId"})
+        @JsonProperty("id")
         @Schema(description = "Identificador do evento (id no EventBridge).", example = "IdHubdeEventos")
         String eventId,
 
-        @JsonAlias("detail-type")
-        @JsonProperty("eventType")
+        @JsonAlias({"detail-type", "detailType", "eventType"})
+        @JsonProperty("detail-type")
         @Schema(description = "Tipo do evento (detail-type no EventBridge).", example = "finance.invoice.bank-return")
         String eventType,
 
@@ -33,10 +33,15 @@ public record EventMessageDTO(
         @Schema(description = "Origem do evento.", example = "event-hub")
         String source,
 
-        @JsonAlias("time")
-        @JsonProperty("timestamp")
+        @JsonAlias({"time", "timestamp"})
+        @JsonProperty("time")
         @Schema(description = "Instante do evento (time no EventBridge).", example = "2026-05-08T12:57:08Z")
         Instant timestamp,
+
+        @JsonAlias({"datacontenttype", "dataContentType", "data-content-type"})
+        @JsonProperty("datacontenttype")
+        @Schema(description = "Tipo de conteúdo do payload (datacontenttype no EventBridge).", example = "application/json")
+        String datacontenttype,
 
         @JsonProperty("data")
         @Schema(description = "Payload legado. Preferir detail para mensagens do EventBridge.")
@@ -53,7 +58,26 @@ public record EventMessageDTO(
     }
 
     public EventMessageDTO(String eventId, String eventType, String source, Instant timestamp, Map<String, Object> data) {
-        this(eventId, eventType, source, timestamp, data, null);
+        this(eventId, eventType, source, timestamp, null, data, null);
+    }
+
+    public EventMessageDTO(String eventId, String eventType, String source, Instant timestamp, Map<String, Object> data, Map<String, Object> detail) {
+        this(eventId, eventType, source, timestamp, null, data, detail);
+    }
+
+    public static EventMessageDTO fromEventBridgeExample() {
+        return new EventMessageDTO(
+                "IdHubdeEventos",
+                "Tipo de vento finance.invoice.",
+                "Origem do evento",
+                Instant.parse("2026-05-08T12:57:08Z"),
+                null,
+                Map.of(
+                        "invoiceId", "CHAVEPORTALNACIONAL",
+                        "payment", java.util.List.of(Map.of("key", "Prefixo+idseqPG")),
+                        "invoiceStatus", "Pago"
+                )
+        );
     }
 
     /**

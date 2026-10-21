@@ -105,8 +105,24 @@ public class EventProcessorService {
     }
 
     private boolean isBankReturnEvent(String eventType) {
-        return BANK_RETURN_EVENT_TYPE.equalsIgnoreCase(eventType)
-                || (eventType != null && eventType.toLowerCase().contains("invoice.bank.return"));
+        if (eventType == null || eventType.isBlank()) {
+            return false;
+        }
+
+        String normalized = eventType
+                .toLowerCase()
+                .replace("_", ".")
+                .replace("-", ".")
+                .replace(" ", "")
+                .replace(".", "");
+
+        return normalized.contains("financeinvoice")
+                || normalized.contains("invoicebankreturn")
+                || normalized.contains("invoice.return")
+                || normalized.contains("invoicebank")
+                || BANK_RETURN_EVENT_TYPE.equalsIgnoreCase(eventType)
+                || eventType.toLowerCase().contains("invoice.bank.return")
+                || eventType.toLowerCase().contains("finance.invoice");
     }
 
     /**

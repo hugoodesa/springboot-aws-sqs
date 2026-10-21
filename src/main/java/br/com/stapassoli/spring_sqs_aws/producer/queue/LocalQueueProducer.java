@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,9 @@ public class LocalQueueProducer implements QueueProducer {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
+    @Value("${app.sqs.producer.queues.events-queue}")
+    private final String queueName;
+
     @Override
     public void send(EventMessageDTO event) {
         send(event, Map.of());
@@ -35,7 +39,7 @@ public class LocalQueueProducer implements QueueProducer {
     public void send(EventMessageDTO event, Map<String, Object> headers) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            sendToQueue("local-simulated-queue", payload, headers);
+            sendToQueue(queueName, payload, headers);
         } catch (JsonProcessingException e) {
             log.error("[LOCAL Queue Producer] Erro ao serializar evento: {}", event, e);
             throw new IllegalArgumentException("Falha na serialização do evento", e);
@@ -44,12 +48,12 @@ public class LocalQueueProducer implements QueueProducer {
 
     @Override
     public void send(String rawPayload) {
-        sendToQueue("local-simulated-queue", rawPayload, Map.of());
+        sendToQueue(queueName, rawPayload, Map.of());
     }
 
     @Override
     public void send(String rawPayload, Map<String, Object> headers) {
-        sendToQueue("local-simulated-queue", rawPayload, headers);
+        sendToQueue(queueName, rawPayload, headers);
     }
 
     @Override
