@@ -10,11 +10,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -65,6 +70,47 @@ class EventConsumerTest {
         eventConsumer.consume(validPayload, "1", "msg-id-1", "receipt-1");
 
         verify(eventProcessorService).processEvent(any(EventMessageDTO.class), eq(validPayload), eq(1));
+        verify(dlqPublisher, never()).sendToDlq(anyString(), anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("Deve extrair os dados de negócio do objeto detail do EventBridge")
+    void shouldExtractBusinessDetailFromEventBridgeEnvelope() {
+        String eventBridgePayload = """
+                {
+                    "id": "IdHubdeEventos",
+                    "detail-type": "finance.invoice.bank-return",
+                    "source": "event-hub",
+                    "time": "2026-05-08T12:57:08Z",
+                    "datacontenttype": "application/json",
+                    "detail": {
+                        "invoiceId": "CHAVEPORTALNACIONAL",
+                        "payment": [
+                            {
+                                "key": "numeroSeqPG"
+                            }
+                        ],
+                        "invoiceStatus": "Pago"
+                    }
+                }
+                """;
+
+        eventConsumer.consume(eventBridgePayload, "1", "msg-id-eb", "receipt-eb");
+
+        ArgumentCaptor<EventMessageDTO> captor = ArgumentCaptor.forClass(EventMessageDTO.class);
+        verify(eventProcessorService).processEvent(captor.capture(), eq(eventBridgePayload), eq(1));
+
+        EventMessageDTO dto = captor.getValue();
+        assertThat(dto.eventId()).isEqualTo("IdHubdeEventos");
+        assertThat(dto.eventType()).isEqualTo("finance.invoice.bank-return");
+        assertThat(dto.source()).isEqualTo("event-hub");
+        assertThat(dto.detail()).isNotNull();
+        assertThat(dto.detail().get("invoiceId")).isEqualTo("CHAVEPORTALNACIONAL");
+        assertThat(dto.getBusinessDetail().get("invoiceId")).isEqualTo("CHAVEPORTALNACIONAL");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> payments = (List<Map<String, Object>>) dto.getBusinessDetail().get("payment");
+        assertThat(payments).hasSize(1);
+        assertThat(payments.getFirst().get("key")).isEqualTo("numeroSeqPG");
         verify(dlqPublisher, never()).sendToDlq(anyString(), anyString(), anyString(), anyMap());
     }
 

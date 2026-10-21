@@ -2,7 +2,9 @@ package br.com.stapassoli.spring_sqs_aws.service;
 
 import br.com.stapassoli.spring_sqs_aws.domain.dto.EventMessageDTO;
 import br.com.stapassoli.spring_sqs_aws.domain.entity.EventEntity;
+import br.com.stapassoli.spring_sqs_aws.domain.entity.InvoiceEntity;
 import br.com.stapassoli.spring_sqs_aws.domain.enums.EventStatus;
+import br.com.stapassoli.spring_sqs_aws.domain.enums.InvoiceStatus;
 import br.com.stapassoli.spring_sqs_aws.domain.repository.EventRepository;
 import br.com.stapassoli.spring_sqs_aws.exception.BusinessException;
 import br.com.stapassoli.spring_sqs_aws.exception.NonRetryableException;
@@ -16,6 +18,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +36,9 @@ class EventProcessorServiceTest {
 
     @Mock
     private EventRepository eventRepository;
+
+    @Mock
+    private InvoiceService invoiceService;
 
     @InjectMocks
     private EventProcessorService eventProcessorService;
@@ -124,5 +131,90 @@ class EventProcessorServiceTest {
 
         assertThatThrownBy(() -> eventProcessorService.processEvent(retryDTO, "{}", 1))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("Deve acionar atualização da nota fiscal para Pago em evento de retorno bancário")
+    void shouldUpdateInvoiceWhenProcessingBankReturnEvent() {
+        InvoiceEntity paidInvoice = InvoiceEntity.builder()
+                .id(UUID.randomUUID())
+                .invoiceId("CHAVEPORTALNACIONAL")
+                .status(InvoiceStatus.PAGO.getDescription())
+                .build();
+
+        when(eventRepository.findByEventId("IdHubdeEventos")).thenReturn(Optional.empty());
+        when(eventRepository.save(any(EventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.updatePaymentStatusToPaid(any(EventMessageDTO.class))).thenReturn(Optional.of(paidInvoice));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("invoiceId", "CHAVEPORTALNACIONAL");
+        detail.put("payment", List.of(Map.of("key", "numeroSeqPG")));
+        EventMessageDTO bankReturn = new EventMessageDTO(
+                "IdHubdeEventos",
+                "finance.invoice.bank-return",
+                "event-hub",
+                Instant.parse("2026-05-08T12:57:08Z"),
+                null,
+                detail
+        );
+
+        EventEntity result = eventProcessorService.processEvent(bankReturn, "{}", 1);
+
+        assertThat(result.getStatus()).isEqualTo(EventStatus.PROCESSED);
+        verify(invoiceService).updatePaymentStatusToPaid(bankReturn);
+        assertThat(paidInvoice.getStatus()).isEqualTo("Pago");
+    }
+
+    @Test
+    @DisplayName("Não deve atualizar nota fiscal quando o evento de retorno bancário não possui detail")
+    void shouldNotUpdateInvoiceWhenBankReturnHasNoDetail() {
+        when(eventRepository.findByEventId("IdHubdeEventos")).thenReturn(Optional.empty());
+        when(eventRepository.save(any(EventEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.updatePaymentStatusToPaid(any(EventMessageDTO.class))).thenReturn(Optional.empty());
+
+        EventMessageDTO bankReturn = new EventMessageDTO(
+                "IdHubdeEventos",
+                "finance.invoice.bank-return",
+                "event-hub",
+                Instant.parse("2026-05-08T12:57:08Z"),
+                null,
+                null
+        );
+
+        EventEntity result = eventProcessorService.processEvent(bankReturn, "{}", 1);
+
+        assertThat(result.getStatus()).isEqualTo(EventStatus.PROCESSED);
+        verify(invoiceService).updatePaymentStatusToPaid(bankReturn);
+    }
+
+    @Test
+    @DisplayName("Não deve reprocessar nota fiscal quando o evento já estiver PROCESSED")
+    void shouldNotReprocessInvoiceWhenEventAlreadyProcessed() {
+        EventEntity existing = EventEntity.builder()
+                .id(UUID.randomUUID())
+                .eventId("IdHubdeEventos")
+                .eventType("finance.invoice.bank-return")
+                .status(EventStatus.PROCESSED)
+                .processedAt(Instant.now().minusSeconds(30))
+                .build();
+        when(eventRepository.findByEventId("IdHubdeEventos")).thenReturn(Optional.of(existing));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("invoiceId", "CHAVEPORTALNACIONAL");
+        detail.put("payment", List.of(Map.of("key", "numeroSeqPG")));
+        EventMessageDTO bankReturn = new EventMessageDTO(
+                "IdHubdeEventos",
+                "finance.invoice.bank-return",
+                "event-hub",
+                Instant.parse("2026-05-08T12:57:08Z"),
+                null,
+                detail
+        );
+
+        EventEntity result = eventProcessorService.processEvent(bankReturn, "{}", 2);
+
+        assertThat(result).isEqualTo(existing);
+        verify(invoiceService, never()).updatePaymentStatusToPaid(any());
+        verify(eventRepository, never()).save(any());
     }
 }

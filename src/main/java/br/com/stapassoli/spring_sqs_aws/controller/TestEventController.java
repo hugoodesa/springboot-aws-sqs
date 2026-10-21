@@ -11,12 +11,25 @@ import br.com.stapassoli.spring_sqs_aws.producer.queue.QueueProducer;
 import br.com.stapassoli.spring_sqs_aws.service.EventProcessorService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
@@ -30,7 +43,60 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/test/eventos")
 @RequiredArgsConstructor
+@Tag(name = "Testes de eventos", description = "Endpoints de simulação local do worker SQS (processamento síncrono, assíncrono, fila e DLQ).")
 public class TestEventController {
+
+    static final String EXAMPLE_EVENTBRIDGE_BANK_RETURN = """
+            {
+              "id": "IdHubdeEventos",
+              "detail-type": "finance.invoice.bank-return",
+              "source": "event-hub",
+              "time": "2026-05-08T12:57:08Z",
+              "datacontenttype": "application/json",
+              "detail": {
+                "invoiceId": "CHAVEPORTALNACIONAL",
+                "payment": [
+                  {
+                    "key": "numeroSeqPG"
+                  }
+                ],
+                "invoiceStatus": "Pago"
+              }
+            }
+            """;
+
+    static final String EXAMPLE_EVENTBRIDGE_COMPOSITE_KEY = """
+            {
+              "id": "IdHubdeEventos-composta",
+              "detail-type": "finance.invoice.bank-return",
+              "source": "event-hub",
+              "time": "2026-05-08T12:57:08Z",
+              "datacontenttype": "application/json",
+              "detail": {
+                "document": "12345678000199",
+                "issueDate": "2026-05-08",
+                "type": "NFS-e",
+                "number": "1001",
+                "serie": "1",
+                "payment": [
+                  {
+                    "key": "numeroSeqPG"
+                  }
+                ]
+              }
+            }
+            """;
+
+    static final String EXAMPLE_SAMPLE_EVENT = """
+            {
+              "eventId": "evt-http-001",
+              "eventType": "ORDER_CREATED",
+              "source": "POSTMAN",
+              "data": {
+                "valor": 99.90
+              }
+            }
+            """;
 
     private final EventProcessorService eventProcessorService;
     private final EventRepository eventRepository;
@@ -40,12 +106,31 @@ public class TestEventController {
     private final DlqPublisher dlqPublisher;
     private final QueueProducer queueProducer;
 
-    /**
-     * Processamento síncrono: chama diretamente a mesma camada de serviço que o SQS consome.
-     * Ideal para validação imediata do retorno via Postman/cURL.
-     */
-    @PostMapping
-    public ResponseEntity<?> processarEventoDireto(@RequestBody String rawPayload) {
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(
+            summary = "Processar evento de forma síncrona",
+            description = "Chama a mesma camada de serviço do consumidor SQS e devolve o evento persistido."
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = "JSON do evento. Prefira o envelope EventBridge, com os dados de negócio em detail.",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = EventMessageDTO.class),
+                    examples = {
+                            @ExampleObject(name = "Retorno bancário com invoiceId", value = EXAMPLE_EVENTBRIDGE_BANK_RETURN),
+                            @ExampleObject(name = "Retorno bancário com chave composta", value = EXAMPLE_EVENTBRIDGE_COMPOSITE_KEY),
+                            @ExampleObject(name = "Evento sample (legado de testes)", value = EXAMPLE_SAMPLE_EVENT)
+                    }
+            )
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Evento processado e persistido",
+                    content = @Content(schema = @Schema(implementation = EventEntity.class))),
+            @ApiResponse(responseCode = "400", description = "JSON inválido (poison pill encaminhado à DLQ)"),
+            @ApiResponse(responseCode = "422", description = "Falha de negócio ou payload rejeitado")
+    })
+    public ResponseEntity<?> processarEventoDireto(@org.springframework.web.bind.annotation.RequestBody String rawPayload) {
         log.info("Recebida requisição síncrona de evento via HTTP POST: {}", rawPayload);
 
         EventMessageDTO dto;
@@ -76,12 +161,25 @@ public class TestEventController {
         }
     }
 
-    /**
-     * Processamento assíncrono: publica um Spring Event simulando a fila SQS.
-     * O SimuladorFilaLocalListener recebe e processa em background com retentativas simuladas.
-     */
-    @PostMapping("/assincrono")
-    public ResponseEntity<Map<String, Object>> processarEventoAssincrono(@RequestBody String rawPayload) {
+    @PostMapping(value = "/assincrono", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(
+            summary = "Publicar evento na fila simulada (assíncrono)",
+            description = "Publica um Spring Event. O SimuladorFilaLocalListener processa em background com retentativas."
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    examples = {
+                            @ExampleObject(name = "Retorno bancário com invoiceId", value = EXAMPLE_EVENTBRIDGE_BANK_RETURN),
+                            @ExampleObject(name = "Evento sample", value = EXAMPLE_SAMPLE_EVENT)
+                    }
+            )
+    )
+    @ApiResponse(responseCode = "202", description = "Evento aceito na fila interna")
+    public ResponseEntity<Map<String, Object>> processarEventoAssincrono(
+            @org.springframework.web.bind.annotation.RequestBody String rawPayload
+    ) {
         log.info("Recebida requisição assíncrona de evento para fila simulada: {}", rawPayload);
 
         EventMessageDTO dto = null;
@@ -102,11 +200,22 @@ public class TestEventController {
         ));
     }
 
-    /**
-     * Publicação em fila normal via QueueProducer (suporta tanto AWS SQS quanto simulador local).
-     */
-    @PostMapping("/fila")
-    public ResponseEntity<Map<String, Object>> publicarNaFila(@RequestBody String rawPayload) {
+    @PostMapping(value = "/fila", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(
+            summary = "Publicar na fila via QueueProducer",
+            description = "Envia a mensagem para o QueueProducer (AWS SQS ou simulador local, conforme a configuração)."
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    examples = @ExampleObject(name = "Retorno bancário com invoiceId", value = EXAMPLE_EVENTBRIDGE_BANK_RETURN)
+            )
+    )
+    @ApiResponse(responseCode = "202", description = "Mensagem enviada para a fila")
+    public ResponseEntity<Map<String, Object>> publicarNaFila(
+            @org.springframework.web.bind.annotation.RequestBody String rawPayload
+    ) {
         log.info("Recebida requisição para publicação direta na fila via QueueProducer: {}", rawPayload);
         queueProducer.send(rawPayload);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
@@ -115,28 +224,32 @@ public class TestEventController {
         ));
     }
 
-    /**
-     * Lista todos os eventos persistidos no banco de dados relacional H2.
-     */
-    @GetMapping
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Listar eventos (teste)", description = "Lista todos os eventos persistidos. Para listagem paginada use GET /api/consultas/eventos.")
+    @ApiResponse(responseCode = "200", description = "Lista de eventos")
     public ResponseEntity<List<EventEntity>> listarEventos() {
         return ResponseEntity.ok(eventRepository.findAll());
     }
 
-    /**
-     * Consulta detalhes de um evento específico por seu eventId.
-     */
-    @GetMapping("/{eventId}")
-    public ResponseEntity<?> buscarPorEventId(@PathVariable String eventId) {
+    @GetMapping(value = "/{eventId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Buscar evento por eventId")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Evento encontrado",
+                    content = @Content(schema = @Schema(implementation = EventEntity.class))),
+            @ApiResponse(responseCode = "404", description = "Evento não encontrado")
+    })
+    public ResponseEntity<?> buscarPorEventId(
+            @Parameter(description = "Identificador de negócio do evento (campo eventId / id do EventBridge).", example = "IdHubdeEventos")
+            @PathVariable String eventId
+    ) {
         return eventRepository.findByEventId(eventId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Consulta as mensagens capturadas na Dead Letter Queue simulada em memória.
-     */
-    @GetMapping("/dlq")
+    @GetMapping(value = "/dlq", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Listar mensagens da DLQ local", description = "Consulta as mensagens capturadas na Dead Letter Queue simulada em memória.")
+    @ApiResponse(responseCode = "200", description = "Mensagens da DLQ local")
     public ResponseEntity<List<DlqMessageRecord>> listarMensagensDlq() {
         if (localMockDlqPublisher.isPresent()) {
             return ResponseEntity.ok(localMockDlqPublisher.get().getCapturedMessages());

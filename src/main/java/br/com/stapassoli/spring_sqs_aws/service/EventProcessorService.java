@@ -19,7 +19,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class EventProcessorService {
 
+    private static final String BANK_RETURN_EVENT_TYPE = "finance.invoice.bank-return";
+
     private final EventRepository eventRepository;
+    private final InvoiceService invoiceService;
 
     /**
      * Processa o evento com garantia de idempotência e persistência transacional.
@@ -31,6 +34,10 @@ public class EventProcessorService {
      */
     @Transactional
     public EventEntity processEvent(EventMessageDTO eventDTO, String rawPayload, int receiveCount) {
+        if (eventDTO == null) {
+            throw new NonRetryableException("Payload inválido: o conteúdo da mensagem não pode ser nulo.");
+        }
+
         log.info("Iniciando processamento do evento [eventId='{}', eventType='{}', tentativa={}]",
                 eventDTO.eventId(), eventDTO.eventType(), receiveCount);
 
@@ -81,6 +88,10 @@ public class EventProcessorService {
             throw new BusinessException("Falha transitória simulada (ex: banco temporariamente instável). Tentativa: " + entity.getRetryCount());
         }
 
+        if (isBankReturnEvent(eventDTO.eventType())) {
+            invoiceService.updatePaymentStatusToPaid(eventDTO);
+        }
+
         // 4. Conclusão do processamento e persistência
         entity.setStatus(EventStatus.PROCESSED);
         entity.setProcessedAt(Instant.now());
@@ -91,6 +102,11 @@ public class EventProcessorService {
                 saved.getId(), saved.getEventId(), saved.getStatus());
 
         return saved;
+    }
+
+    private boolean isBankReturnEvent(String eventType) {
+        return BANK_RETURN_EVENT_TYPE.equalsIgnoreCase(eventType)
+                || (eventType != null && eventType.toLowerCase().contains("invoice.bank.return"));
     }
 
     /**

@@ -46,6 +46,15 @@ app:
       max-messages-per-poll: ${SQS_MAX_MESSAGES_PER_POLL:10}
       poll-timeout-seconds: ${SQS_POLL_TIMEOUT_SECONDS:10}
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+  show-actuator: false
+
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
