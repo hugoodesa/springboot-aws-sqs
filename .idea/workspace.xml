@@ -7,14 +7,10 @@
     <option name="selectedModelId" value="auto" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3ec032f8-1272-4618-bacc-a23a7d3a974a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/domain/entity/RastreabilidadePagamentoNotaFiscalEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/resources/data.sql" afterDir="false" />
+    <list default="true" id="3ec032f8-1272-4618-bacc-a23a7d3a974a" name="Changes" comment="added repository and model to be more close from the final solution">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/domain/dto/EventMessageDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/domain/dto/EventMessageDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/producer/dlq/EventDlqPublisher.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/producer/dlq/EventDlqPublisher.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/producer/queue/LocalQueueProducer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/br/com/stapassoli/spring_sqs_aws/producer/queue/LocalQueueProducer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -150,7 +146,15 @@
       <option name="project" value="LOCAL" />
       <updated>1792543314542</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="added repository and model to be more close from the final solution">
+      <option name="closed" value="true" />
+      <created>1792624186183</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1792624186183</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -161,6 +165,7 @@
       <path value="$PROJECT_DIR$" />
     </ignored-roots>
     <MESSAGE value="Adapted for business requirements" />
-    <option name="LAST_COMMIT_MESSAGE" value="Adapted for business requirements" />
+    <MESSAGE value="added repository and model to be more close from the final solution" />
+    <option name="LAST_COMMIT_MESSAGE" value="added repository and model to be more close from the final solution" />
   </component>
 </project>
